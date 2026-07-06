@@ -122,9 +122,58 @@
       .search-row {
         display: flex;
         gap: 0.75rem;
+        position: relative;
+      }
+      .history-dropdown {
+        display: none;
+        position: absolute;
+        top: calc(100% + 8px);
+        left: 0;
+        right: 0;
+        background: var(--purple-mid);
+        border: 1px solid rgba(248, 184, 49, 0.4);
+        border-radius: 10px;
+        overflow: hidden;
+        z-index: 20;
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+        text-align: left;
+      }
+      html[dir="rtl"] .history-dropdown {
+        text-align: right;
+      }
+      .history-dropdown.visible {
+        display: block;
+      }
+      .history-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.7rem 1rem;
+        cursor: pointer;
+        font-family: "FoodBuka", "Cairo", sans-serif;
+        font-weight: 700;
+        font-size: 1.05rem;
+        color: #fff;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      .history-item:last-child {
+        border-bottom: none;
+      }
+      .history-item:hover {
+        background: rgba(255, 255, 255, 0.08);
+      }
+      .history-item-remove {
+        color: rgba(255, 255, 255, 0.5);
+        font-size: 1.2rem;
+        line-height: 1;
+        padding: 0 0.35rem;
+      }
+      .history-item-remove:hover {
+        color: #fff;
       }
       .search-input {
         flex: 1;
+        min-width: 0;
         background: rgba(255, 255, 255, 0.1);
         border: 1.5px solid rgba(248, 184, 49, 0.4);
         border-radius: 10px;
@@ -147,6 +196,7 @@
         border-color: var(--mustard);
       }
       .search-btn {
+        flex-shrink: 0;
         background: var(--mustard);
         color: #3d1c5e;
         border: none;
@@ -265,7 +315,7 @@
         transition: background 0.5s;
       }
       .timeline.step-1::before {
-        background: var(--mustard);
+        background: var(--green);
       }
       .t-step {
         display: flex;
@@ -542,6 +592,7 @@
         >
           <option value="en">English</option>
           <option value="fr">Français</option>
+          <option value="ar">العربية</option>
         </select>
         <div class="nav-clock" id="clock">00:00</div>
       </div>
@@ -562,6 +613,7 @@
           <button class="search-btn" id="trackBtn" onclick="startTracking()">
             TRACK
           </button>
+          <div class="history-dropdown" id="historyDropdown"></div>
         </div>
         <div class="spinner" id="spinner"></div>
         <div class="not-found" id="notFound">
@@ -688,10 +740,33 @@
           cancelTitle: "Commande Annulée",
           cancelSub: "Cette commande a été annulée par le personnel.",
         },
+        ar: {
+          searchTitle: "تتبع طلبك",
+          searchSub: "أدخل رقم طلبك لمشاهدة الحالة مباشرة",
+          trackBtn: "تتبع",
+          errTitle: "الطلب غير موجود",
+          errSub: "تحقق من الرقم أو اسأل أحد الموظفين.",
+          errConn: "خطأ في الاتصال",
+          errConnSub: "يرجى سؤال أحد الموظفين عن حالة طلبك.",
+          yourOrder: "طلبك",
+          etaLabel: "الوقت المتوقع: ",
+          etaPrep: "5–8 دقائق",
+          etaReady: "جاهز الآن!",
+          timePrep: "وقت التحضير:",
+          timeTotal: "الوقت الإجمالي:",
+          lblPrep: "قيد التحضير",
+          lblReady: "جاهز للاستلام",
+          statusPrep: "طلبك قيد التحضير الآن!",
+          statusReady: "🎉 طلبك جاهز وساخن! تفضل إلى الكاونتر.",
+          lblUpdated: "آخر تحديث:",
+          cancelTitle: "تم إلغاء الطلب",
+          cancelSub: "تم إلغاء هذا الطلب من قبل الموظفين.",
+        },
       };
       function changeLanguage(lang) {
         currentLang = lang;
         document.documentElement.lang = lang;
+        document.documentElement.dir = lang === "ar" ? "rtl" : "ltr";
         const d = dict[lang];
         document.getElementById("searchTitle").textContent = d.searchTitle;
         document.getElementById("searchSub").textContent = d.searchSub;
@@ -729,6 +804,80 @@
         showCancelToast();
       }
       const READY_SOUND_SRC = "assets/sounds/ready.mp3";
+
+      const HISTORY_KEY = "pattysOrderHistory";
+      const ACTIVE_ORDER_KEY = "pattysActiveOrder";
+
+      function getHistory() {
+        try {
+          return JSON.parse(localStorage.getItem(HISTORY_KEY)) || [];
+        } catch (e) {
+          return [];
+        }
+      }
+      function saveHistory(arr) {
+        try {
+          localStorage.setItem(HISTORY_KEY, JSON.stringify(arr));
+        } catch (e) {}
+      }
+      function addToHistory(num) {
+        let h = getHistory().filter((n) => n !== num);
+        h.unshift(num);
+        h = h.slice(0, 5);
+        saveHistory(h);
+        renderHistoryDropdown();
+      }
+      function removeFromHistory(num) {
+        saveHistory(getHistory().filter((n) => n !== num));
+        renderHistoryDropdown();
+      }
+      function renderHistoryDropdown() {
+        const dd = document.getElementById("historyDropdown");
+        const h = getHistory();
+        if (!h.length) {
+          dd.innerHTML = "";
+          dd.classList.remove("visible");
+          return;
+        }
+        dd.innerHTML = h
+          .map(
+            (n) =>
+              `<div class="history-item" data-num="${n}"><span>#${n}</span><span class="history-item-remove" data-remove="${n}">&times;</span></div>`,
+          )
+          .join("");
+      }
+      function persistActiveOrder(num) {
+        try {
+          localStorage.setItem(ACTIVE_ORDER_KEY, num);
+        } catch (e) {}
+      }
+      document.getElementById("orderInput").addEventListener("focus", () => {
+        if (getHistory().length)
+          document.getElementById("historyDropdown").classList.add("visible");
+      });
+      document.addEventListener("click", (e) => {
+        const dd = document.getElementById("historyDropdown");
+        if (e.target.id !== "orderInput" && !dd.contains(e.target))
+          dd.classList.remove("visible");
+      });
+      document
+        .getElementById("historyDropdown")
+        .addEventListener("click", (e) => {
+          const removeNum = e.target.getAttribute("data-remove");
+          if (removeNum) {
+            e.stopPropagation();
+            removeFromHistory(removeNum);
+            return;
+          }
+          const item = e.target.closest(".history-item");
+          if (item) {
+            document.getElementById("orderInput").value = item.dataset.num;
+            document
+              .getElementById("historyDropdown")
+              .classList.remove("visible");
+            startTracking();
+          }
+        });
 
       function getReadyAudio() {
         if (!readyAudio) {

@@ -86,7 +86,7 @@
         background: rgba(251, 184, 43, 0.5);
         border-radius: 50%;
         vertical-align: middle;
-        margin-right: 10rem;
+        margin-inline-end: 10rem;
       }
       @keyframes marquee-scroll {
         0% {
@@ -198,7 +198,7 @@
       }
       .tv-sidebar-panel {
         background: linear-gradient(180deg, #5b0d8a 0%, #420a65 100%);
-        border-left: 3px solid rgba(251, 184, 43, 0.3);
+        border-inline-start: 3px solid rgba(251, 184, 43, 0.3);
         padding: 1.25rem 1rem;
         display: flex;
         flex-direction: column;
@@ -310,13 +310,17 @@
 
             <span> Bienvenue chez Patty's </span>
 
+            <span dir="rtl"> أهلاً بكم في Patty's </span>
+
             <span> Welcome to Patty's </span>
 
             <span> Bienvenue chez Patty's </span>
+
+            <span dir="rtl"> أهلاً بكم في Patty's </span>
           </div>
         </div>
 
-        <div class="clock" id="live-time">00:00</div>
+        <div class="clock" id="live-time" dir="ltr">00:00</div>
       </header>
 
       <div class="main-tv-layout-wrapper">
@@ -353,7 +357,7 @@
               Scan to monitor your order status live.
             </p>
 
-            <p class="tv-qr-phone" id="qr-phone">54344744</p>
+            <p class="tv-qr-phone" id="qr-phone" dir="ltr">54344744</p>
           </div>
         </div>
       </div>
@@ -374,21 +378,39 @@
       updateTime();
       const langs = [
         {
+          dir: "ltr",
+          lang: "en",
           preparing: "Preparing",
           ready: "Ready for Pickup",
           qrTitle: "Track your order on Your Phone",
           qrDesc: "Scan to monitor your order status live.",
           qrPhone: "📞 54344744",
+          noOrders: "No active orders",
         },
         {
+          dir: "ltr",
+          lang: "fr",
           preparing: "En Préparation",
           ready: "Prêt à Emporter",
           qrTitle: "Suivez votre commande ici",
           qrDesc: "Scannez pour suivre votre commande en direct.",
           qrPhone: "📞 54344744",
+          noOrders: "Aucune commande active",
+        },
+        {
+          dir: "rtl",
+          lang: "ar",
+          preparing: "قيد التحضير",
+          ready: "جاهز للاستلام",
+          qrTitle: "تتبع طلبك من هنا",
+          qrDesc: "امسح الرمز لمتابعة حالة طلبك مباشرة.",
+          qrPhone: "📞 54344744",
+          noOrders: "لا توجد طلبات نشطة",
         },
       ];
       let langIdx = 0;
+      let currentNoOrdersText = langs[0].noOrders;
+      const tvBoard = document.getElementById("tv-scale-wrapper");
       function rotateLang() {
         langIdx = (langIdx + 1) % langs.length;
         const l = langs[langIdx];
@@ -397,6 +419,9 @@
         document.getElementById("qr-title").textContent = l.qrTitle;
         document.getElementById("qr-desc").textContent = l.qrDesc;
         document.getElementById("qr-phone").textContent = l.qrPhone;
+        tvBoard.setAttribute("dir", l.dir);
+        tvBoard.setAttribute("lang", l.lang);
+        currentNoOrdersText = l.noOrders;
       }
       setInterval(rotateLang, 5000);
       var prevReadyNums = [];
@@ -463,32 +488,37 @@
         const el = document.getElementById(id);
         const html =
           orders.length === 0
-            ? '<div style="color:#bcaed4;font-weight:600;font-size:1.1rem;padding:1rem;">No active orders</div>'
+            ? `<div style="color:#bcaed4;font-weight:600;font-size:1.1rem;padding:1rem;">${currentNoOrdersText}</div>`
             : orders.map((n) => `<div class="${cls}">${n}</div>`).join("");
         if (el.innerHTML !== html) el.innerHTML = html;
       }
       setInterval(fetchUpdates, 1000);
       fetchUpdates();
+      var DESIGN_W = 1920,
+        DESIGN_H = 1080;
+      var tvWrapper = document.getElementById("tv-scale-wrapper");
+      function fitToScreen() {
+        var scale = Math.min(
+          window.innerWidth / DESIGN_W,
+          window.innerHeight / DESIGN_H,
+        );
+        tvWrapper.style.transform = "scale(" + scale + ")";
+      }
+      fitToScreen();
+      window.addEventListener("resize", fitToScreen);
+      document.addEventListener("fullscreenchange", fitToScreen);
+      document.addEventListener("webkitfullscreenchange", fitToScreen);
+
       document.addEventListener("click", function requestFS() {
         var el = document.documentElement;
         if (el.requestFullscreen) el.requestFullscreen();
         else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+        // Fallback in case this TV's browser doesn't fire a fullscreenchange
+        // or resize event promptly after entering fullscreen.
+        setTimeout(fitToScreen, 150);
+        setTimeout(fitToScreen, 500);
         document.removeEventListener("click", requestFS);
       });
-      (function () {
-        var DESIGN_W = 1920,
-          DESIGN_H = 1080;
-        var wrapper = document.getElementById("tv-scale-wrapper");
-        function fitToScreen() {
-          var scale = Math.min(
-            window.innerWidth / DESIGN_W,
-            window.innerHeight / DESIGN_H,
-          );
-          wrapper.style.transform = "scale(" + scale + ")";
-        }
-        fitToScreen();
-        window.addEventListener("resize", fitToScreen);
-      })();
     </script>
   </body>
 </html>
