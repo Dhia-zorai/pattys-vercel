@@ -460,10 +460,31 @@
         } catch (e) {}
       }
 
+      // Candidate column names for "when did this row's status last change".
+      // We check these in order and use whichever one actually exists on the
+      // returned rows. If none exist, we fall back to the order Supabase
+      // returns (no reshuffling behavior).
+      const TIMESTAMP_FIELD_CANDIDATES = [
+        "status_updated_at",
+        "status_changed_at",
+        "updated_at",
+        "modified_at",
+        "created_at",
+      ];
+      function getTimestampField(rows) {
+        if (!rows || !rows.length) return null;
+        for (const field of TIMESTAMP_FIELD_CANDIDATES) {
+          if (Object.prototype.hasOwnProperty.call(rows[0], field)) {
+            return field;
+          }
+        }
+        return null;
+      }
+
       async function fetchUpdates() {
         try {
           const r = await fetch(
-            SUPABASE_URL + "/rest/v1/live_orders?select=order_number,status",
+            SUPABASE_URL + "/rest/v1/live_orders?select=*",
             {
               headers: {
                 apikey: SUPABASE_KEY,
@@ -477,12 +498,26 @@
             return;
           }
           const rows = await r.json();
+          const tsField = getTimestampField(rows);
+
+          // Preparing column: sorted by order number (stable position,
+          // easy to scan while food is still cooking).
           const cooking = rows
             .filter((o) => o.status === "Preparing Food")
+            .sort((a, b) => a.order_number - b.order_number)
             .map((o) => o.order_number);
-          const ready = rows
-            .filter((o) => o.status === "Ready for Pickup")
-            .map((o) => o.order_number);
+
+          // Ready column: most-recently-marked-ready first, so a number
+          // that just became ready pops up at the top where it's noticed
+          // immediately. Falls back to Supabase's natural row order if no
+          // timestamp column is available.
+          const readyRows = rows.filter((o) => o.status === "Ready for Pickup");
+          if (tsField) {
+            readyRows.sort(
+              (a, b) => new Date(b[tsField]) - new Date(a[tsField]),
+            );
+          }
+          const ready = readyRows.map((o) => o.order_number);
           renderGrid("cooking-grid", cooking, "card box-cooking");
           var hasNewReady = ready.some(function (n) {
             return prevReadyNums.indexOf(n) === -1;
